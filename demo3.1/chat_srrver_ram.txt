@@ -1,0 +1,92 @@
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+use Ratchet\MessageComponentInterface;
+use Ratchet\ConnectionInterface;
+use Ratchet\Http\HttpServer;
+use Ratchet\WebSocket\WsServer;
+use Ratchet\Server\IoServer;
+
+class ChatServer implements MessageComponentInterface {
+    protected $clients;
+    private $chatHistory = []; // Dùng mảng thay vì JSON
+
+    public function __construct() {
+        $this->clients = new \SplObjectStorage;
+    }
+
+    public function onOpen(ConnectionInterface $conn) {
+        $this->clients->attach($conn);
+        echo "New connection! ({$conn->resourceId})\n";
+    }
+
+    public function onMessage(ConnectionInterface $from, $msg) {
+        echo "Received message: $msg\n";
+        $data = json_decode($msg, true);
+    
+        if (!$data || !isset($data['type'])) {
+            echo "❌ Lỗi: Tin nhắn không hợp lệ!\n";
+            return;
+        }
+    
+        try {
+            if ($data['type'] === 'load_history') {
+                $this->loadChatHistory($from, $data['user1'], $data['user2']);
+            } elseif ($data['type'] === 'message') {
+                $this->saveAndBroadcastMessage($from, $data);
+            }
+        } catch (\Exception $e) {
+            echo "⚠ Lỗi khi xử lý tin nhắn: " . $e->getMessage() . "\n";
+        }
+    }
+
+    private function loadChatHistory(ConnectionInterface $conn, $user1, $user2) {
+        $key = $user1 . "_" . $user2;
+        $messages = isset($this->chatHistory[$key]) ? $this->chatHistory[$key] : [];
+
+        $conn->send(json_encode(["type" => "chat_history", "messages" => $messages]));
+    }
+
+    private function saveAndBroadcastMessage(ConnectionInterface $from, $data) {
+        $key = $data['user1'] . "_" . $data['user2'];
+        $messageData = [
+            "sender" => $data["sender"],
+            "message" => $data["message"],
+            "timestamp" => date("Y-m-d H:i:s")
+        ];
+
+        // Lưu tin nhắn vào bộ nhớ RAM
+        if (!isset($this->chatHistory[$key])) {
+            $this->chatHistory[$key] = [];
+        }
+        $this->chatHistory[$key][] = $messageData;
+
+        // Chỉ giữ tối đa 100 tin nhắn gần nhất
+        if (count($this->chatHistory[$key]) > 100) {
+            $this->chatHistory[$key] = array_slice($this->chatHistory[$key], -100);
+        }
+
+        // Gửi tin nhắn đến tất cả client
+        foreach ($this->clients as $client) {
+            $client->send(json_encode(["type" => "new_message", "message" => $messageData]));
+        }
+    }
+
+    public function onClose(ConnectionInterface $conn) {
+        $this->clients->detach($conn);
+        echo "Connection {$conn->resourceId} has disconnected\n";
+    }
+
+    public function onError(ConnectionInterface $conn, \Exception $e) {
+        echo "Error: " . $e->getMessage() . "\n";
+        echo "📌 Error occurred at line " . $e->getLine() . " in " . $e->getFile() . "\n";
+    }
+}
+
+$server = IoServer::factory(
+    new HttpServer(new WsServer(new ChatServer())),
+    8080
+);
+
+echo "WebSocket server running on port 8080...\n";
+$server->run();

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 500px; margin: auto; padding: 20px; }
+        input, button { width: 100%; margin-top: 5px; padding: 10px; }
+        pre { background: #f4f4f4; padding: 10px; }
+        .product-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Đăng ký</h2>
+        <input type="text" id="reg-username" placeholder="Username">
+        <input type="email" id="reg-email" placeholder="Email">
+        <input type="password" id="reg-password" placeholder="Password">
+        <button onclick="register()">Đăng ký</button>
+        <pre id="reg-result"></pre>
+
+        <h2>Đăng nhập</h2>
+        <input type="email" id="login-email" placeholder="Email">
+        <input type="password" id="login-password" placeholder="Password">
+        <button onclick="login()">Đăng nhập</button>
+        <pre id="login-result"></pre>
+
+        <h2>Get All Users</h2>
+        <button onclick="getAllUsers()">Get All</button>
+        <pre id="all-users"></pre>
+
+        <h2>Get Current Users</h2>
+        <button onclick="getCurrentUser()">Get Current</button>
+        <pre id="current-user"></pre>
+
+        <h2>Find User By Name</h2>
+        <input type="text" id="search-username" placeholder="Enter username">
+        <button onclick="getUserByName()">Find User</button>
+        <pre id="user-result"></pre>
+
+        <h2>Tạo danh mục</h2>
+        <input type="text" id="cat-name" placeholder="Tên danh mục">
+        <button onclick="createCategory()">Tạo danh mục</button>
+        <pre id="cat-result"></pre>
+
+        <h2>Get All Categories</h2>
+        <button onclick="getAllCategories()">Get All</button>
+        <pre id="all-categories"></pre>
+
+        <h2>Find Category By Name</h2>
+        <input type="text" id="search-category" placeholder="Enter category name">
+        <button onclick="getCategoryByName()">Find Category</button>
+        <pre id="category-result"></pre>
+
+        <h2>Tạo sản phẩm</h2>
+        <input type="text" id="prod-name" placeholder="Tên sản phẩm">
+        <input type="number" id="prod-category" placeholder="ID danh mục">
+        <textarea id="prod-detail" placeholder="Chi tiết sản phẩm"></textarea>
+        <button onclick="createProduct()">Tạo sản phẩm</button>
+        <pre id="prod-result"></pre>
+
+        <h2>Cập nhật sản phẩm</h2>
+        <input type="number" id="update-prod-id" placeholder="ID sản phẩm">
+        <input type="text" id="update-prod-name" placeholder="Tên sản phẩm mới">
+        <input type="number" id="update-prod-category" placeholder="ID danh mục mới">
+        <textarea id="update-prod-detail" placeholder="Chi tiết sản phẩm mới"></textarea>
+        <button onclick="updateProduct()">Cập nhật sản phẩm</button>
+        <pre id="update-prod-result"></pre>
+
+
+        <h2>📌 Lấy toàn bộ sản phẩm</h2>
+        <button onclick="getAllProducts()">Lấy danh sách</button>
+        <pre id="all-products"></pre>
+    
+        <h2>🔎 Tìm sản phẩm theo tên</h2>
+        <input type="text" id="search-product" placeholder="Nhập tên sản phẩm">
+        <button onclick="getProductByName()">Tìm kiếm</button>
+        <pre id="product-result"></pre>
+
+        <h2>📌 Lấy sản phẩm theo ID</h2>
+        <input type="number" id="product-id" placeholder="Nhập ID sản phẩm">
+        <button onclick="getProductById()">Lấy sản phẩm</button>
+        <pre id="product-result"></pre>
+        
+
+
+
+    </div>
+    <script>
+        let token = localStorage.getItem("token") || "";
+    console.log("Loaded token:", token);
+    async function fetchData(url, method = "GET", body = null, auth = false) {
+    let headers = { "Content-Type": "application/json" };
+    let savedToken = localStorage.getItem("token");
+    if (auth && savedToken) headers["Authorization"] = "Bearer " + savedToken;
+
+    let options = { method, headers };
+    if (body) options.body = JSON.stringify(body);
+
+    console.log("🛠 Sending Request:", { url, method, headers, body });
+
+    try {
+        let res = await fetch(url, options);
+
+        if (!res.ok) {
+            console.error(`❌ HTTP Error: ${res.status} ${res.statusText}`);
+            return { error: `HTTP Error ${res.status}` };
+        }
+
+        // ✅ Chuyển sang await res.json() để đảm bảo dữ liệu không bị rỗng
+        let data = await res.json();  
+
+        console.log("📩 Response (Parsed):", data);
+
+        return data;
+    } catch (err) {
+        console.error("❌ Request failed:", err);
+        return { error: "Request failed" };
+    }
+}
+
+
+// ✅ Đăng ký
+async function register() {
+    let data = await fetchData("http://localhost:8000/register", "POST", {
+        username: document.getElementById("reg-username").value,
+        email: document.getElementById("reg-email").value,
+        password: document.getElementById("reg-password").value
+    });
+
+    document.getElementById("reg-result").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Đăng nhập
+async function login() {
+    let data = await fetchData("http://localhost:8000/login", "POST", {
+        email: document.getElementById("login-email").value,
+        password: document.getElementById("login-password").value
+    });
+
+    console.log("📩 Full Response:", data);  // Kiểm tra phản hồi từ API
+
+    if (data && data.token) {
+    localStorage.setItem("token", data.token);
+    console.log("✅ Token đã lưu:", localStorage.getItem("token"));
+    } else {
+        console.error("❌ Không tìm thấy token. Response:", data);
+    }
+
+
+    document.getElementById("login-result").innerText = JSON.stringify(data, null, 2);
+}
+
+
+
+
+// ✅ Lấy tất cả user (cần token)
+async function getAllUsers() {
+    let data = await fetchData("http://localhost:8000/users", "GET", null, true);
+    document.getElementById("all-users").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Lấy thông tin user hiện tại (cần token)
+async function getCurrentUser() {
+    let data = await fetchData("http://localhost:8000/users?current=true", "GET", null, true);
+    document.getElementById("current-user").innerText = JSON.stringify(data, null, 2);
+}
+
+
+// ✅ Tìm user theo tên
+async function getUserByName() {
+    let username = document.getElementById("search-username").value;
+    let data = await fetchData(`http://localhost:8000/users?username=${username}`, "GET", null, true);
+    document.getElementById("user-result").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Tạo danh mục (cần token)
+async function createCategory() {
+    let data = await fetchData("http://localhost:8000/category", "POST", {
+        name: document.getElementById("cat-name").value
+    }, true);
+
+    document.getElementById("cat-result").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Lấy tất cả danh mục
+async function getAllCategories() {
+    let data = await fetchData("http://localhost:8000/category", "GET", null, true);
+    document.getElementById("all-categories").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Tìm danh mục theo tên
+async function getCategoryByName() {
+    let name = document.getElementById("search-category").value;
+    let data = await fetchData(`http://localhost:8000/category?name=${name}`, "GET", null, true);
+    document.getElementById("category-result").innerText = JSON.stringify(data, null, 2);
+}
+
+async function createProduct() {
+    let data = await fetchData("http://localhost:8000/product", "POST", {
+        name: document.getElementById("prod-name").value,
+        category_id: document.getElementById("prod-category").value,
+        detail: document.getElementById("prod-detail").value
+    }, true);
+
+    document.getElementById("prod-result").innerText = JSON.stringify(data, null, 2);
+}
+
+// ✅ Cập nhật sản phẩm
+async function updateProduct() {
+    let data = await fetchData(`http://localhost:8000/product/${document.getElementById("update-prod-id").value}`, "PUT", {
+        name: document.getElementById("update-prod-name").value,
+        category_id: document.getElementById("update-prod-category").value,
+        detail: document.getElementById("update-prod-detail").value
+    }, true);
+
+    document.getElementById("update-prod-result").innerText = JSON.stringify(data, null, 2);
+}
+
+ // ✅ Lấy toàn bộ sản phẩm
+        async function getAllProducts() {
+            let data = await fetchData("http://localhost:8000/products", "GET", null, true);
+            document.getElementById("all-products").innerText = JSON.stringify(data, null, 2);
+        }
+
+        // ✅ Tìm sản phẩm theo tên
+        async function getProductByName() {
+            let name = document.getElementById("search-product").value.trim();
+            if (!name) {
+                alert("Vui lòng nhập tên sản phẩm!");
+                return;
+            }
+            let data = await fetchData(`http://localhost:8000/products?name=${name}`, "GET", null, true);
+            document.getElementById("product-result").innerText = JSON.stringify(data, null, 2);
+        }
+        // ✅ Gọi hàm lấy tất cả sản phẩm khi trang tải xong
+        document.addEventListener("DOMContentLoaded", getAllProducts);
+
+
+        // ✅ Lấy sản phẩm theo ID
+async function getProductById() {
+    let productId = document.getElementById("product-id").value.trim();
+    if (!productId) {
+        alert("Vui lòng nhập ID sản phẩm!");
+        return;
+    }
+    
+    let data = await fetchData(`http://localhost:8000/product/${productId}`, "GET", null, true);
+    document.getElementById("product-result").innerText = JSON.stringify(data, null, 2);
+}
+
+
+    
+
+    </script>
+</body>
+</html>

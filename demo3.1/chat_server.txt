@@ -1,0 +1,99 @@
+// cái code bull shit này lưu vào file json khiến cho server bị đóng cay vãi tôi fix nó tận 8 tiếng vì k debug được mà cũng k báo lỗi i hate u json
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+use Ratchet\MessageComponentInterface;
+use Ratchet\ConnectionInterface;
+use Ratchet\Http\HttpServer;
+use Ratchet\WebSocket\WsServer;
+use Ratchet\Server\IoServer;
+
+class ChatServer implements MessageComponentInterface {
+    protected $clients;
+    private $storagePath = __DIR__ . "/storage/";
+
+    public function __construct() {
+        $this->clients = new \SplObjectStorage;
+
+        // Tạo thư mục storage nếu chưa có
+        if (!is_dir($this->storagePath)) {
+            mkdir($this->storagePath, 0777, true);
+        }
+    }
+
+    public function onOpen(ConnectionInterface $conn) {
+        $this->clients->attach($conn);
+        echo "New connection! ({$conn->resourceId})\n";
+    }
+
+    public function onMessage(ConnectionInterface $from, $msg) {
+    try {
+        $data = json_decode($msg, true);
+        if (!$data || !isset($data['type'])) {
+            throw new Exception("Dữ liệu không hợp lệ!");
+        }
+
+        if ($data['type'] === 'ping') return; // Bỏ qua ping
+
+        if ($data['type'] === 'message') {
+            $this->saveAndBroadcastMessage($from, $data);
+        }
+    } catch (Exception $e) {
+        echo "❌ Lỗi: " . $e->getMessage() . "\n";
+    }
+}
+
+    
+
+    private function getChatFilePath($user1, $user2) {
+        $filename = "{$user1}_{$user2}.json";
+        return $this->storagePath . $filename;
+    }
+
+    private function loadChatHistory(ConnectionInterface $conn, $user1, $user2) {
+        $filePath = $this->getChatFilePath($user1, $user2);
+
+        if (!file_exists($filePath)) {
+            file_put_contents($filePath, json_encode([]));
+        }
+
+        $messages = json_decode(file_get_contents($filePath), true);
+        $conn->send(json_encode(["type" => "chat_history", "messages" => $messages]));
+    }
+
+    private function saveAndBroadcastMessage(ConnectionInterface $from, $data) {
+        $filePath = $this->getChatFilePath($data['user1'], $data['user2']);
+        $messageData = [
+            "sender" => $data["sender"],
+            "message" => $data["message"],
+            "timestamp" => date("Y-m-d H:i:s")
+        ];
+
+        $messages = json_decode(file_get_contents($filePath), true);
+        $messages[] = $messageData;
+        file_put_contents($filePath, json_encode($messages, JSON_PRETTY_PRINT));
+
+        foreach ($this->clients as $client) {
+            $client->send(json_encode(["type" => "new_message", "message" => $messageData]));
+        }
+    }
+
+    public function onClose(ConnectionInterface $conn) {
+        $this->clients->detach($conn);
+        echo "Connection {$conn->resourceId} has disconnected\n";
+    }
+
+    public function onError(ConnectionInterface $conn, \Exception $e) {
+        echo "Error: " . $e->getMessage() . "\n";
+        echo "📌 Error occurred at line " . $e->getLine() . " in " . $e->getFile() . "\n";
+        // $conn->close();
+    }
+}
+
+$server = IoServer::factory(
+    new HttpServer(new WsServer(new ChatServer())),
+    8080
+);
+
+echo "WebSocket server running on port 8080...\n";
+$server->run();
